@@ -36,8 +36,6 @@ pub enum ParseError {
     EmptyImage,
     #[error("Could not parse tag: `{0}`.")]
     InvalidTag(String),
-    #[error("Could  image metadata `{0}`.")]
-    InvalidImageMetadata(String),
     #[error("Could arse dockerhub response.")]
     InvalidDockerhubResponse,
 }
@@ -653,10 +651,15 @@ impl FromStr for ImageMetadata {
     type Err = Error;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        if s.trim().is_empty() {
+        let cleaned_slice = if s.ends_with(':') {
+            s.strip_suffix(':').expect("We just checked if the slice ends with a colon")
+        } else {
+            s
+        };
+        if cleaned_slice.trim().is_empty() {
             return Err(Error::Parse(ParseError::EmptyImage));
         }
-        if let Some((group, name)) = s.split_once('/') {
+        if let Some((group, name)) = cleaned_slice.split_once('/') {
             if let Some((name, tag)) = name.split_once(':') {
                 return Ok(Self {
                     group:  Some(group.to_owned()),
@@ -665,7 +668,7 @@ impl FromStr for ImageMetadata {
                     latest: tag.eq_ignore_ascii_case("latest"),
                 });
             }
-        } else if let Some((name, tag)) = s.split_once(':') {
+        } else if let Some((name, tag)) = cleaned_slice.split_once(':') {
             return Ok(Self {
                 group:  None,
                 name:   name.to_owned(),
@@ -673,8 +676,20 @@ impl FromStr for ImageMetadata {
                 latest: tag == "latest",
             });
         }
-        error!("Invalid docker image: {s}");
-        Err(Error::Parse(ParseError::InvalidImageMetadata(s.to_owned())))
+        //This happens if we reference another image
+        Ok(Self {
+            group:  None,
+            name:   cleaned_slice.to_owned(),
+            tag:    Tag {
+                major:           None,
+                minor:           None,
+                patch:           None,
+                variant:         None,
+                prefix:          None,
+                allowed_missing: true,
+            },
+            latest: false,
+        })
     }
 }
 
@@ -714,7 +729,9 @@ impl ContainerImage {
     pub fn get_full_name(&self) -> String {
         match self {
             Self::Dockerhub(metadata) => {
-                if self.get_group().is_some() {
+                if metadata.tag.allowed_missing {
+                    self.get_name().clone()
+                } else if self.get_group().is_some() {
                     format!("{}/{}", self.get_group().expect("Group was set."), self.get_name())
                 } else {
                     format!("library/{}", self.get_name())
@@ -950,7 +967,7 @@ impl ContainerImage {
 
             // Inserting found tags into cache
             let mut cache = TAGS_CACHE.write().expect("Cache can be written.");
-            if cache.insert(full_name.to_string(), tags.clone()).is_none() {
+            if cache.insert(full_name.clone(), tags.clone()).is_none() {
                 debug!(
                     "Inserted tags into cache successfully. Cache contains {} tags for {full_name}",
                     cache.get(full_name).expect("Version exists in cache.").len()
@@ -1011,6 +1028,8 @@ impl Display for ContainerImage {
                 }
                 if metadata.latest {
                     write!(f, ":latest")?;
+                } else if metadata.tag.allowed_missing {
+                    write!(f, "{}", metadata.tag)?;
                 } else {
                     write!(f, ":{}", metadata.tag)?;
                 }
@@ -1039,6 +1058,7 @@ mod tests {
 # Comment 3
 # comment 3.1
 FROM alpine:3.0 AS base
+FROM base AS something
 COPY /app /app
 ADD src dest
 CMD ["/command"]
@@ -1113,11 +1133,11 @@ STOPSIGNAL SIGTERM
         );
         // The first stage after the comments actually has data
         assert_eq!(dockerfile.get_stages().get(1).unwrap().image.get_tagged_name(), "alpine:3.0");
-        assert_eq!(dockerfile.get_stages().get(2).unwrap().image.get_tagged_name(), "node:8.0-alpine");
-        assert_eq!(dockerfile.get_stages().get(2).unwrap().image.get_full_query_name(), "library/node");
-        assert_eq!(dockerfile.get_stages().get(2).unwrap().image.get_name(), "node");
+        assert_eq!(dockerfile.get_stages().get(3).unwrap().image.get_tagged_name(), "node:8.0-alpine");
+        assert_eq!(dockerfile.get_stages().get(3).unwrap().image.get_full_query_name(), "library/node");
+        assert_eq!(dockerfile.get_stages().get(3).unwrap().image.get_name(), "node");
         assert_eq!(
-            dockerfile.get_stages().get(2).unwrap().instructions.get(2).unwrap(),
+            dockerfile.get_stages().get(3).unwrap().instructions.get(2).unwrap(),
             &(DockerInstruction::Comment(String::from("comment in the middle"), 8))
         );
         assert_eq!(dockerfile.get_stages().last().unwrap().image.get_full_tagged_name(), "dotnet/aspnet:9.0.0");
@@ -1143,7 +1163,7 @@ STOPSIGNAL SIGTERM
             dockerfile.get_stages().last().unwrap().instructions.last().unwrap(),
             &(DockerInstruction::StopSignal(String::from("SIGTERM")))
         );
-        assert_eq!(dockerfile.get_stages().len(), 8); // 7 images + 1 comment stage above the first, they count as individual stages
+        assert_eq!(dockerfile.get_stages().len(), 9); // 8 images + 1 comment stage above the first, they count as individual stages
         let mut dockerfile = dockerfile;
         dockerfile.clear_path();
         assert_eq!(dockerfile.get_path(), None);

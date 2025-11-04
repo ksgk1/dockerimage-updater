@@ -47,11 +47,12 @@ impl Display for TagVariant {
 
 #[derive(Debug, Clone, Default, Eq, PartialEq, PartialOrd, Ord, Deserialize, Serialize)]
 pub struct Tag {
-    pub major:   Option<u64>,
-    pub minor:   Option<u64>,
-    pub patch:   Option<u64>,
-    pub variant: Option<TagVariant>,
-    pub prefix:  Option<char>,
+    pub major:           Option<u64>,
+    pub minor:           Option<u64>,
+    pub patch:           Option<u64>,
+    pub variant:         Option<TagVariant>,
+    pub prefix:          Option<char>,
+    pub allowed_missing: bool,
 }
 
 impl Display for Tag {
@@ -186,6 +187,7 @@ impl FromStr for Tag {
                 patch,
                 variant,
                 prefix,
+                allowed_missing: false,
             })
         } else {
             let prefix = if s.to_ascii_lowercase().starts_with('v') {
@@ -213,6 +215,7 @@ impl FromStr for Tag {
                         version_delimiter: None,
                     }),
                     prefix,
+                    allowed_missing: false,
                 });
             }
             Ok(Self {
@@ -221,6 +224,7 @@ impl FromStr for Tag {
                 patch,
                 variant: None,
                 prefix,
+                allowed_missing: false,
             })
         }
     }
