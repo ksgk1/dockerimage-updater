@@ -19,3 +19,5 @@ FROM nginx:1.25.5-alpine3.19
 FROM guacamole/guacamole:1.4.0
 
 FROM mcr.microsoft.com/dotnet/aspnet:9.0.0 AS Final
+
+FROM Final AS FinalFinal

@@ -1,9 +1,9 @@
 use std::fmt::{Display, Formatter};
-use std::fs;
 use std::ops::Sub;
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
 use std::time::Duration;
+use std::{fs, vec};
 
 use tracing::{debug, error, info};
 use ureq::Agent;
@@ -935,6 +935,10 @@ impl ContainerImage {
     }
 
     pub fn get_remote_tags(&self, limit: Option<u16>, arch: Option<&String>) -> Result<VersionTags, Box<dyn std::error::Error>> {
+        if self.get_tag().clone().allowed_missing {
+            // This happens if we reference a previous stage, so we just return
+            return Ok(VersionTags { tags: vec![] });
+        }
         let full_name = &self.get_full_name();
         let mut tags = Vec::<Tag>::new();
         if full_name == "library/" {
