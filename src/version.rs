@@ -295,6 +295,12 @@ impl Display for VersionTags {
     }
 }
 
+impl From<Vec<Tag>> for VersionTags {
+    fn from(value: Vec<Tag>) -> Self {
+        Self { tags: value }
+    }
+}
+
 /// # Returns
 ///
 /// * `true`: Only if the current major version is the same and the minor

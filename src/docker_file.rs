@@ -937,14 +937,11 @@ impl ContainerImage {
     pub fn get_remote_tags(&self, limit: Option<u16>, arch: Option<&String>) -> Result<VersionTags, Box<dyn std::error::Error>> {
         if self.get_tag().clone().allowed_missing {
             // This happens if we reference a previous stage, so we just return
-            return Ok(VersionTags { tags: vec![] });
+            return Ok(VersionTags::from(vec![]));
         }
         let full_name = &self.get_full_name();
         let mut tags = Vec::<Tag>::new();
-        if full_name == "library/" {
-            dbg!(&self);
-        }
-        if full_name.is_empty() || full_name == "/" {
+        if full_name.is_empty() || full_name == "/" || (self.get_group().is_none() && self.get_name().is_empty()) {
             return Ok(VersionTags { tags });
         }
         let mut cache_file_name = full_name.replace('/', "-");
