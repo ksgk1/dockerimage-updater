@@ -17,6 +17,8 @@ use crate::tag::Tag;
 pub enum Strategy {
     #[default]
     Latest,
+    NextPatch,
+    LatestPatch,
     NextMinor,
     LatestMinor,
     NextMajor,
@@ -28,6 +30,8 @@ impl From<Strategy> for OsStr {
     fn from(value: Strategy) -> Self {
         match value {
             Strategy::Latest => Self::from("latest"),
+            Strategy::NextPatch => Self::from("next-patch"),
+            Strategy::LatestPatch => Self::from("latest-patch"),
             Strategy::NextMinor => Self::from("next-minor"),
             Strategy::LatestMinor => Self::from("latest-minor"),
             Strategy::NextMajor => Self::from("next-major"),
@@ -39,6 +43,8 @@ impl From<Strategy> for OsStr {
 impl Display for Strategy {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
+            Self::NextPatch => write!(f, "next patch"),
+            Self::LatestPatch => write!(f, "latest patch"),
             Self::NextMinor => write!(f, "next minor"),
             Self::LatestMinor => write!(f, "latest minor"),
             Self::NextMajor => write!(f, "next major"),
@@ -71,7 +77,6 @@ impl DockerfileUpdate {
     }
 }
 
-// TODO: Make this work well again
 impl Display for DockerfileUpdate {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         writeln!(f, "The following updates are available:")?;
@@ -81,7 +86,7 @@ impl Display for DockerfileUpdate {
                     write!(f, "{container_image}")?;
                     self.updates.iter().for_each(|update| {
                         if update.0 == stage_idx {
-                            let _ = write!(f, " {} -> {}", container_image.get_tag(), update.1);
+                            let _ = write!(f, " -> {}", update.1);
                         }
                     });
                     writeln!(f)?;
@@ -113,6 +118,40 @@ pub fn handle_input(input_mode: &cli::InputArguments) {
         info!("===> No candidate found.");
         if input_mode.common.quiet {
             println!();
+        }
+    }
+}
+
+/// Handles data from standard input
+pub fn handle_overview(overview_mode: &cli::OverviewArguments) {
+    let docker_image: ContainerImage = overview_mode.input.parse().expect("Image could be parsed.");
+    let mut docker_image_tags = docker_image
+        .get_remote_tags(overview_mode.common.tag_search_limit, overview_mode.common.arch.as_ref())
+        .expect("Getting tags finishes sucessful.");
+    docker_image_tags.sort();
+
+    if overview_mode.common.quiet {
+        println!("Results for: {}", docker_image.get_full_tagged_name());
+    } else {
+        info!("Results for: {}", docker_image.get_full_tagged_name());
+    }
+    // create one found tag for every Strat
+    for strat in [
+        Strategy::NextPatch,
+        Strategy::LatestPatch,
+        Strategy::NextMinor,
+        Strategy::LatestMinor,
+        Strategy::NextMajor,
+        Strategy::LatestMajor,
+    ] {
+        if let Some(found_tag) = docker_image.get_tag().find_candidate_tag(&docker_image_tags, &strat) {
+            if overview_mode.common.quiet {
+                println!("{strat}:\t{}:{}", docker_image.get_full_name(), found_tag.to_string().trim_end_matches('.'));
+            } else {
+                info!("===> {strat}:\t{}:{found_tag}", docker_image.get_full_name(),);
+            }
+        } else if !overview_mode.common.quiet {
+            info!("===> No candidate found for {strat}.");
         }
     }
 }

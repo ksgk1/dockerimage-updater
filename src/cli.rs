@@ -19,6 +19,11 @@ pub enum Mode {
     #[command(alias = "i")]
     Input(InputArguments),
 
+    /// Overview mode: Enter a docker image string via stdin and receive the
+    /// all possible upgrades for each available strategy
+    #[command(alias = "o")]
+    Overview(OverviewArguments),
+
     /// File mode: Choose a dockerfile and update all images based on a given
     /// strategy.
     #[command(alias = "s")]
@@ -54,6 +59,16 @@ pub struct InputArguments {
 
     #[arg(long, help = "Which strategy should be used.", default_value = Strategy::Latest)]
     pub(crate) strat: Strategy,
+
+    #[command(flatten)]
+    pub(crate) common: CommonOptions,
+}
+
+#[derive(Args, Debug, Clone)]
+pub struct OverviewArguments {
+    // Using positional argument instead of named argument
+    #[arg(value_name = "IMAGE", help = "The full docker image including the tag, that shall be updated.")]
+    pub(crate) input: String,
 
     #[command(flatten)]
     pub(crate) common: CommonOptions,

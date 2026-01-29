@@ -2,7 +2,7 @@ use clap::Parser;
 use tracing_subscriber::prelude::*;
 use tracing_subscriber::{EnvFilter, fmt};
 
-use crate::utils::{handle_file, handle_input, handle_multi};
+use crate::utils::{handle_file, handle_input, handle_multi, handle_overview};
 
 mod cli;
 mod container_image;
@@ -21,6 +21,7 @@ fn main() {
         cli::Mode::File(file_mode) => file_mode.common.debug,
         cli::Mode::Input(input_mode) => input_mode.common.debug,
         cli::Mode::Multi(multi_file_mode) => multi_file_mode.common.debug,
+        cli::Mode::Overview(overview_mode) => overview_mode.common.debug,
     };
 
     let env_filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new(if debug { "debug" } else { "info" }));
@@ -45,6 +46,9 @@ fn main() {
     match cli.mode {
         cli::Mode::Input(input_mode) => {
             handle_input(&input_mode);
+        }
+        cli::Mode::Overview(overview_mode) => {
+            handle_overview(&overview_mode);
         }
         cli::Mode::File(file_mode) => {
             handle_file(&file_mode);

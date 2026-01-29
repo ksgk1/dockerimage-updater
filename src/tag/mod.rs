@@ -154,7 +154,8 @@ impl Tag {
     /// if any of the version within the variant are greater than in the current
     /// version. See check functions for `TagVariant`.
     pub(crate) fn is_next_patch(&self, rhs: &Self) -> bool {
-        self.is_same_minor(rhs)
+        self.is_same_major(rhs)
+            && self.is_same_minor(rhs)
             && match (self.patch, rhs.patch) {
                 (None | Some(_), None) | (None, Some(_)) => false,
                 (Some(current), Some(next)) => {
@@ -179,6 +180,7 @@ impl Tag {
             .filter(|tag| {
                 self.is_same_variant(tag)
                     && match strategy {
+                        Strategy::NextPatch | Strategy::LatestPatch => self.is_next_patch(tag),
                         Strategy::NextMinor | Strategy::LatestMinor => self.is_next_minor(tag),
                         Strategy::NextMajor | Strategy::LatestMajor => self.is_next_major(tag),
                         Strategy::Latest => self.is_next_major(tag) || self.is_next_minor(tag) || self.is_next_patch(tag),
@@ -202,8 +204,8 @@ impl Tag {
         }
 
         match strategy {
-            Strategy::NextMajor | Strategy::NextMinor => filtered_tags.first().copied(),
-            Strategy::LatestMajor | Strategy::LatestMinor | Strategy::Latest => filtered_tags.last().copied(),
+            Strategy::NextMajor | Strategy::NextMinor | Strategy::NextPatch => filtered_tags.first().copied(),
+            Strategy::LatestMajor | Strategy::LatestMinor | Strategy::LatestPatch | Strategy::Latest => filtered_tags.last().copied(),
         }
     }
 }
