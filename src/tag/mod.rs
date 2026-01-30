@@ -384,6 +384,7 @@ mod tests {
             ("9.0.1-debian-12-r8", "9.0.1-debian-13-r8", true),
             ("1.5.1-11_base", "1.5", false),
             ("1.5.1-11_base", "1.5.1-10_base", false),
+            ("9.0.11-alpine3.22", "9.0.12-alpine3.23", true),
         ];
 
         for (current, next, expect) in &cases {
