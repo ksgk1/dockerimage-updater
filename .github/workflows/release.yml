@@ -1,86 +1,76 @@
-name: Build Release
+name: Build and Release with Cross
 
 on:
   push:
-    tags:
-      - 'v*'  # Only triggers on version tags
-
-permissions:
-  contents: write  # Required to create releases
+    branches: [ main ]
+    tags: [ 'v*' ]
 
 env:
-  BINARY_NAME: dockerimage-updater
+  BINARY_NAME: "dockerimage-updater"
 
 jobs:
-  build-linux:
-    name: Build for Linux
+  build:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-musl
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Build
+        run: cargo build --release --target ${{ matrix.target }}
+
+      - name: Package (Windows)
+        if: matrix.target == 'x86_64-pc-windows-msvc'
+        shell: pwsh
+        run: |
+          $version = if ("${{ github.ref }}".StartsWith("refs/tags/v")) { "${{ github.ref_name }}" } else { "${{ github.sha }}".Substring(0, 7) }
+          New-Item -ItemType Directory -Path release -Force
+          Copy-Item -Path "target\x86_64-pc-windows-msvc\release\$env:BINARY_NAME.exe" -Destination "release\$env:BINARY_NAME-$version.exe"
+
+      - name: Package (Linux)
+        if: matrix.target != 'x86_64-pc-windows-msvc'
+        run: |
+          if [[ "${{ github.ref }}" == refs/tags/v* ]]; then
+            version="${{ github.ref_name }}"
+          else
+            version=$(echo "${{ github.sha }}" | cut -c1-7)
+          fi
+          mkdir -p release
+          cp target/${{ matrix.target }}/release/$BINARY_NAME release/$BINARY_NAME-$version-${{ matrix.target }}
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v6
+        with:
+          name: ${{ matrix.target }}
+          path: release/
+
+  release:
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
-
+    permissions:
+      contents: write
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v6
-
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Cache cargo registry
-        uses: actions/cache@v5
+      - name: Download artifacts
+        uses: actions/download-artifact@v6
         with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            target
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          path: release
 
-      - name: Build project
-        run: cargo build --release
-
-      - name: Rename binary with version
-        run: |
-          version=${{ github.ref_name }}
-          mv target/release/${{ env.BINARY_NAME }} target/release/${{ env.BINARY_NAME }}-$version-linux
-
-      - name: Upload binary to release
+      - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ github.ref_name }}
           files: |
-            target/release/${{ env.BINARY_NAME }}-${{ github.ref_name }}-linux
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-  build-windows:
-    name: Build for Windows
-    runs-on: windows-latest
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v6
-
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Cache cargo registry
-        uses: actions/cache@v5
-        with:
-          path: |
-            C:\Users\runneradmin\.cargo\registry
-            C:\Users\runneradmin\.cargo\git
-            target
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-
-      - name: Build project
-        run: cargo build --release
-
-      - name: Rename binary with version
-        run: |
-          copy target/release/${{ env.BINARY_NAME }}.exe target/release/${{ env.BINARY_NAME }}-${{ github.ref_name }}.exe
-
-      - name: Upload binary to release
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: ${{ github.ref_name }}
-          files: |
-            target/release/${{ env.BINARY_NAME }}-${{ github.ref_name }}.exe
+            release/x86_64-unknown-linux-musl/${{ env.BINARY_NAME }}-${{ github.ref_name }}-x86_64-unknown-linux-musl
+            release/x86_64-pc-windows-msvc/${{ env.BINARY_NAME }}-${{ github.ref_name }}.exe
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
