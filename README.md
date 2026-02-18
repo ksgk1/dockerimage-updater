@@ -7,28 +7,22 @@ The tool allows to get a new version for a given docker image (or Dockerfile(s))
 ## Examples
 
 ```bash
-dockerimage-updater input mcr.microsoft.com/dotnet/aspnet:9.0.0 --strat next-minor -q
+dockerimage-updater input mcr.microsoft.com/dotnet/aspnet:9.0.0 --strat next-patch -q
 mcr.microsoft.com/dotnet/aspnet:9.0.1
 
-dockerimage-updater input bitnami/openldap:2.6.8-debian-12-r1 --strat latest-minor -q
-bitnami/openldap:2.6.9-debian-12-r10
-
-dockerimage-updater input node:18.0.0-alpine --strat next-major -q
-node:19.2.0-alpine3.17
-
-dockerimage-updater input node:18.0.0-alpine --strat latest-major -q
-node:23.9.0-alpine3.21
-
-dockerimage-updater input node:22.6.0-bookworm-slim -q
-node:23.9.0-bookworm-slim
-
+dockerimage-updater overview node:22.6.0-bookworm-slim -q
+Results for:    node:22.6.0-bookworm-slim
+next minor:     node:22.7-bookworm-slim
+latest minor:   node:22.22.0-bookworm-slim
+next major:     node:23.0-bookworm-slim
+latest major:   node:25.6.1-bookworm-slim
 ```
 
 ## Features
 
 * The tool tries to keep the variant (e.g. alpine) in place and respects this during the update.
 * The tool operates on semver tags only. Major and minor have to be already given. See example dockerfile.
-* Cache files will be saved in the location of the binary, to reduce unncessary traffic (cache will be updated after an hour).
+* Cache files will be saved in the location of the binary, to reduce unncessary traffic (cache will be updated after one hour).
 * Support for Dockerhub and Microsoft Container Registry (MCR)
 * Quiet-mode only prints the result, in case the output need to be captured.
 * Updating entire dockerfile(s) via file input. Dry-run can be used for a preview.
