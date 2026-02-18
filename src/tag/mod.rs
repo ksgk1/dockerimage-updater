@@ -119,8 +119,8 @@ impl Tag {
         }
     }
 
-    pub(crate) const fn has_patch(&self) -> bool {
-        self.patch.is_some()
+    pub(crate) const fn has_minor(&self) -> bool {
+        self.minor.is_some()
     }
 
     /// Ensures that the variant prefix and suffix match properly
@@ -134,7 +134,7 @@ impl Tag {
 
     /// Checks if the next major version is greater than the current version.
     pub(crate) const fn is_next_major(&self, rhs: &Self) -> bool {
-        rhs.has_patch()
+        rhs.has_minor()
             && match (self.major, rhs.major) {
                 (None | Some(_), None) | (None, Some(_)) => false,
                 (Some(current), Some(next)) => current < next,

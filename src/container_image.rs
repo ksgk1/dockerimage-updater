@@ -769,7 +769,7 @@ mod tests {
     use std::io::Write;
 
     use pretty_assertions::assert_eq;
-    use rand::Rng;
+    use rand::RngExt;
 
     use crate::container_image::{ContainerImage, DockerInstruction, Dockerfile};
     use crate::tag::Tag;
