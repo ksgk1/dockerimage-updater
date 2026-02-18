@@ -160,14 +160,15 @@ impl Tag {
                 (None | Some(_), None) | (None, Some(_)) => false,
                 (Some(current), Some(next)) => {
                     current < next
-                        || match (self.variant.as_ref(), rhs.variant.as_ref()) {
-                            (None | Some(_), None) | (None, Some(_)) => false,
-                            (Some(current_variant), Some(next_variant)) => {
-                                current_variant.is_same_prefix(next_variant) && current_variant.is_next_major(next_variant)
-                                    || current_variant.is_next_minor(next_variant)
-                                    || current_variant.is_next_patch(next_variant)
+                        || current == next
+                            && match (self.variant.as_ref(), rhs.variant.as_ref()) {
+                                (None | Some(_), None) | (None, Some(_)) => false,
+                                (Some(current_variant), Some(next_variant)) => {
+                                    current_variant.is_same_prefix(next_variant) && current_variant.is_next_major(next_variant)
+                                        || current_variant.is_next_minor(next_variant)
+                                        || current_variant.is_next_patch(next_variant)
+                                }
                             }
-                        }
                 }
             }
     }
@@ -385,6 +386,7 @@ mod tests {
             ("1.5.1-11_base", "1.5", false),
             ("1.5.1-11_base", "1.5.1-10_base", false),
             ("9.0.11-alpine3.22", "9.0.12-alpine3.23", true),
+            ("2.6.8-debian-12-r1", "2.6.2-debian-11-r2", false),
         ];
 
         for (current, next, expect) in &cases {

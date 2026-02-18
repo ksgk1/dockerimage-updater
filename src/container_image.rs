@@ -14,7 +14,6 @@ use crate::tag::Tag;
 use crate::utils::{DockerfileUpdate, Strategy, extract_cache_from_file};
 
 const MCR_PREFIX: &str = "mcr.microsoft.com/";
-const GCR_PREFIX: &str = "gcr.io/";
 
 /// The dockerfile related errors, that may occur during parsing.
 #[derive(Debug, thiserror::Error, PartialEq, Eq)]
@@ -421,7 +420,6 @@ impl FromStr for ImageMetadata {
 pub enum ContainerImage {
     Dockerhub(ImageMetadata),
     Mcr(ImageMetadata),
-    Gcr(ImageMetadata),
 }
 
 impl Default for ContainerImage {
@@ -436,7 +434,7 @@ impl ContainerImage {
     /// Some(dotnet) or None
     const fn get_group(&self) -> Option<&String> {
         match self {
-            Self::Dockerhub(metadata) | Self::Mcr(metadata) | Self::Gcr(metadata) => metadata.group.as_ref(),
+            Self::Dockerhub(metadata) | Self::Mcr(metadata) => metadata.group.as_ref(),
         }
     }
 
@@ -444,14 +442,14 @@ impl ContainerImage {
     /// no group was set
     fn get_group_string(&self) -> String {
         match self {
-            Self::Dockerhub(metadata) | Self::Mcr(metadata) | Self::Gcr(metadata) => metadata.group.clone().unwrap_or_default(),
+            Self::Dockerhub(metadata) | Self::Mcr(metadata) => metadata.group.clone().unwrap_or_default(),
         }
     }
 
     /// Returns the full name for a  given image, e.g. node, python, aspnet
     pub const fn get_name(&self) -> &String {
         match self {
-            Self::Dockerhub(metadata) | Self::Mcr(metadata) | Self::Gcr(metadata) => &metadata.name,
+            Self::Dockerhub(metadata) | Self::Mcr(metadata) => &metadata.name,
         }
     }
 
@@ -468,7 +466,7 @@ impl ContainerImage {
                     format!("library/{}", self.get_name())
                 }
             }
-            Self::Mcr(metadata) | Self::Gcr(metadata) => {
+            Self::Mcr(metadata) => {
                 if self.get_group().is_some() {
                     format!("{}/{}", self.get_group().expect("Group was set"), self.get_name())
                 } else {
@@ -478,12 +476,39 @@ impl ContainerImage {
         }
     }
 
+    /// Returns the full name for a  given image, e.g. node, library/python,
+    /// dotnet/aspnet
+    pub(crate) fn get_dockerimage_name(&self) -> String {
+        match self {
+            Self::Dockerhub(metadata) => {
+                if metadata.tag.allowed_missing {
+                    self.get_name().clone()
+                } else if self.get_group().is_some() {
+                    format!("{}/{}", self.get_group().expect("Group was set."), self.get_name())
+                } else {
+                    self.get_name().to_owned()
+                }
+            }
+            Self::Mcr(metadata) => {
+                if self.get_group().is_some() {
+                    format!("{MCR_PREFIX}{}/{}", self.get_group().expect("Group was set"), self.get_name())
+                } else {
+                    format!("{MCR_PREFIX}{}", self.get_name())
+                }
+            }
+        }
+    }
+
     /// Returns the full name for a  given image, e.g. node:<tag>,
     /// library/python:<tag>, dotnet/aspnet:<tag>
     pub(crate) fn get_full_tagged_name(&self) -> String {
         match self {
-            Self::Dockerhub(metadata) | Self::Mcr(metadata) | Self::Gcr(metadata) => {
-                format!("{}/{}:{}", self.get_group_string(), self.get_name(), self.get_tag())
+            Self::Dockerhub(metadata) | Self::Mcr(metadata) => {
+                if self.get_group_string().is_empty() {
+                    format!("{}:{}", self.get_name(), self.get_tag())
+                } else {
+                    format!("{}/{}:{}", self.get_group_string(), self.get_name(), self.get_tag())
+                }
             }
         }
     }
@@ -492,7 +517,7 @@ impl ContainerImage {
     /// aspnet:<tag>
     pub(crate) fn get_tagged_name(&self) -> String {
         match self {
-            Self::Dockerhub(metadata) | Self::Mcr(metadata) | Self::Gcr(metadata) => {
+            Self::Dockerhub(metadata) | Self::Mcr(metadata) => {
                 format!("{}:{}", self.get_name(), self.get_tag())
             }
         }
@@ -500,46 +525,39 @@ impl ContainerImage {
 
     pub const fn get_tag(&self) -> &Tag {
         match self {
-            Self::Dockerhub(metadata) | Self::Mcr(metadata) | Self::Gcr(metadata) => &metadata.tag,
+            Self::Dockerhub(metadata) | Self::Mcr(metadata) => &metadata.tag,
         }
     }
 
     fn set_tag(&mut self, tag: &Tag) {
         match self {
-            Self::Dockerhub(metadata) | Self::Mcr(metadata) | Self::Gcr(metadata) => metadata.tag = tag.clone(),
+            Self::Dockerhub(metadata) | Self::Mcr(metadata) => metadata.tag = tag.clone(),
         }
     }
 
     const fn is_latest(&self) -> bool {
         match self {
-            Self::Dockerhub(metadata) | Self::Mcr(metadata) | Self::Gcr(metadata) => metadata.tag.latest,
+            Self::Dockerhub(metadata) | Self::Mcr(metadata) => metadata.tag.latest,
         }
     }
 
     const fn is_mcr(&self) -> bool {
         match self {
-            Self::Dockerhub(_) | Self::Gcr(_) => false,
+            Self::Dockerhub(_) => false,
             Self::Mcr(_) => true,
-        }
-    }
-
-    const fn is_gcr(&self) -> bool {
-        match self {
-            Self::Dockerhub(_) | Self::Mcr(_) => false,
-            Self::Gcr(_) => true,
         }
     }
 
     const fn is_dockerhub(&self) -> bool {
         match self {
             Self::Dockerhub(_) => true,
-            Self::Mcr(_) | Self::Gcr(_) => false,
+            Self::Mcr(_) => false,
         }
     }
 
     fn is_empty(&self) -> bool {
         match self {
-            Self::Dockerhub(image_metadata) | Self::Mcr(image_metadata) | Self::Gcr(image_metadata) => *image_metadata == ImageMetadata::default(),
+            Self::Dockerhub(image_metadata) | Self::Mcr(image_metadata) => *image_metadata == ImageMetadata::default(),
         }
     }
 
@@ -552,11 +570,6 @@ impl ContainerImage {
             Self::Mcr(_) => {
                 let full_name = self.get_full_name();
                 format!("https://mcr.microsoft.com/api/v1/catalog/{full_name}/tags?reg=mar")
-            }
-            Self::Gcr(_) => {
-                let name = self.get_name();
-                let group = self.get_group().expect("Group was set");
-                format!("https://artifactregistry.clients6.google.com/v1/projects/{group}/locations/us/repositories/gcr.io/packages/{name}/versions")
             }
         }
     }
@@ -676,8 +689,6 @@ impl ContainerImage {
             let registry_response: RegistryResponse = match &self {
                 Self::Dockerhub(image_metadata) => registries::RegistryResponse::DockerHub(self.request_dockerhub(limit)?),
                 Self::Mcr(image_metadata) => registries::RegistryResponse::MicrosoftContainerRegistry(self.request_mcr()?),
-                // TODO: GCR image fetching and result parsing
-                Self::Gcr(image_metadata) => todo!(),
             };
 
             let mut tags = registry_response.get_tags(arch.map(std::string::String::as_str));
@@ -728,8 +739,6 @@ impl FromStr for ContainerImage {
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         Ok(if s.to_ascii_lowercase().starts_with(MCR_PREFIX) {
             Self::Mcr(s.strip_prefix(MCR_PREFIX).expect("Prefix exists.").parse()?)
-        } else if s.to_ascii_lowercase().starts_with(GCR_PREFIX) {
-            Self::Gcr(s.strip_prefix(GCR_PREFIX).expect("Prefix exists.").parse()?)
         } else {
             Self::Dockerhub(s.parse()?)
         })
@@ -739,10 +748,7 @@ impl FromStr for ContainerImage {
 impl Display for ContainerImage {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::Dockerhub(metadata) | Self::Mcr(metadata) | Self::Gcr(metadata) => {
-                if self.is_gcr() {
-                    write!(f, "gcr.io/")?;
-                }
+            Self::Dockerhub(metadata) | Self::Mcr(metadata) => {
                 if self.is_mcr() {
                     write!(f, "mcr.microsoft.com/")?;
                 }

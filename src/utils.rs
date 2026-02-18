@@ -112,7 +112,7 @@ pub fn handle_input(input_mode: &cli::InputArguments) {
             docker_image.get_full_tagged_name(),
         );
         if input_mode.common.quiet {
-            println!("{}:{}", docker_image.get_full_name(), found_tag.to_string().trim_end_matches('.'));
+            println!("{}:{}", docker_image.get_dockerimage_name(), found_tag.to_string().trim_end_matches('.'));
         }
     } else {
         info!("===> No candidate found.");
@@ -131,9 +131,9 @@ pub fn handle_overview(overview_mode: &cli::OverviewArguments) {
     docker_image_tags.sort();
 
     if overview_mode.common.quiet {
-        println!("Results for: {}", docker_image.get_full_tagged_name());
+        println!("Results for:\t{}", docker_image.get_full_tagged_name());
     } else {
-        info!("Results for: {}", docker_image.get_full_tagged_name());
+        info!("Results for:\t{}", docker_image.get_full_tagged_name());
     }
     // create one found tag for every Strat
     for strat in [
@@ -146,9 +146,13 @@ pub fn handle_overview(overview_mode: &cli::OverviewArguments) {
     ] {
         if let Some(found_tag) = docker_image.get_tag().find_candidate_tag(&docker_image_tags, &strat) {
             if overview_mode.common.quiet {
-                println!("{strat}:\t{}:{}", docker_image.get_full_name(), found_tag.to_string().trim_end_matches('.'));
+                println!(
+                    "{strat}:\t{}:{}",
+                    docker_image.get_dockerimage_name(),
+                    found_tag.to_string().trim_end_matches('.')
+                );
             } else {
-                info!("===> {strat}:\t{}:{found_tag}", docker_image.get_full_name(),);
+                info!("===> {strat}:\t{}:{found_tag}", docker_image.get_dockerimage_name(),);
             }
         } else if !overview_mode.common.quiet {
             info!("===> No candidate found for {strat}.");

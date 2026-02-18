@@ -9,11 +9,13 @@ use crate::tag::Tag;
 pub mod dockerhub;
 pub mod mcr;
 
-/// The default limit of how many tags should be fetched. Can be overwritten with --tag-search-limit
+/// The default limit of how many tags should be fetched. Can be overwritten
+/// with --tag-search-limit
 pub const TAG_RESULT_LIMIT: usize = 2000;
 /// Conversion constant
 pub const DURATION_HOUR_AS_SECS: u64 = 60 * 60;
-/// A cache for quicker lookups for repeated usage of already cached tags. Will be valid for max. 1 hour.
+/// A cache for quicker lookups for repeated usage of already cached tags. Will
+/// be valid for max. 1 hour.
 pub static TAGS_CACHE: LazyLock<RwLock<HashMap<String, Vec<Tag>>>> = LazyLock::new(|| RwLock::new(HashMap::new()));
 
 #[derive(Debug)]
