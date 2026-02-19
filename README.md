@@ -1,5 +1,9 @@
 # DockerImage Updater
 
+## Made by humans
+
+![brainmade](./assets/white-logo.png)
+
 ## tl;dr
 
 The tool allows to get a new version for a given docker image (or Dockerfile(s)). There are 5 different strategies: Update to next minor version, update to latest minor version, update to next major version and update to lastest major version, or latest available ( a combination of the latest minor and major).
