@@ -2,7 +2,7 @@ use clap::Parser;
 use tracing_subscriber::prelude::*;
 use tracing_subscriber::{EnvFilter, fmt};
 
-use crate::utils::{handle_file, handle_input, handle_multi, handle_overview};
+use crate::utils::{check_update, handle_file, handle_input, handle_multi, handle_overview};
 
 mod cli;
 mod container_image;
@@ -41,6 +41,16 @@ fn main() {
         }
     } else {
         tracing_subscriber::registry().with(env_filter).with(fmt_layer).init();
+    }
+
+    // Check for update if not quiet mode is not enabled
+    if !match &cli.mode {
+        cli::Mode::Input(input_arguments) => input_arguments.common.quiet,
+        cli::Mode::Overview(overview_arguments) => overview_arguments.common.quiet,
+        cli::Mode::File(single_file_arguments) => single_file_arguments.common.quiet,
+        cli::Mode::Multi(multi_file_arguments) => multi_file_arguments.common.quiet,
+    } {
+        check_update();
     }
 
     match cli.mode {

@@ -4,13 +4,17 @@ use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 use clap::builder::OsStr;
+use serde::Deserialize;
 use tracing::{debug, error, info};
+use ureq::Agent;
 use walkdir::WalkDir;
 
 use crate::cli;
 use crate::container_image::{ContainerImage, DockerInstruction, Dockerfile};
 use crate::registries::{DURATION_HOUR_AS_SECS, TAGS_CACHE};
 use crate::tag::Tag;
+
+const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 #[derive(Clone, Debug, Default, PartialEq, Eq, clap::ValueEnum)]
 #[clap(rename_all = "kebab-case")]
@@ -260,6 +264,38 @@ pub fn extract_cache_from_file(full_name: &str, tags: &mut Vec<Tag>, cache_file_
         info!("No cache file exists under `{cache_file_name}`, fetching info from docker hub.");
     }
     Ok(())
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct TagRefListResponse {
+    refs:       Vec<String>,
+    _cache_key: String,
+}
+
+pub fn check_update() {
+    let agent = Agent::new_with_defaults();
+
+    if let Ok(mut response) = agent
+        .get("https://github.com/ksgk1/dockerimage-updater/refs?type=tag")
+        .header("Accept", "application/json")
+        .call()
+    {
+        let current_tag: Tag = VERSION.parse().expect("We used a valid semver version for our own project.");
+        let response_body = &response.body_mut().read_to_string().expect("Well-formed response");
+        let parsed_response: TagRefListResponse = serde_json::from_str(response_body).expect("Well-formed json with expected fields");
+        let ref_tags: Vec<Tag> = parsed_response
+            .refs
+            .iter()
+            .filter_map(|tag| tag.strip_prefix("v").unwrap_or(tag).parse().ok())
+            .collect();
+        if ref_tags.iter().any(|t| t > &current_tag) {
+            println!(
+                "A newer version is available: v{}\nPlease check: https://github.com/ksgk1/dockerimage-updater/releases",
+                ref_tags.iter().max().expect("We have a max version")
+            );
+        }
+    }
 }
 
 #[cfg(test)]
