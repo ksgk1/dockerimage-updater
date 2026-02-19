@@ -42,15 +42,23 @@ impl Display for Tag {
             }
             match &self.variant {
                 Some(variant) => {
-                    if self.major.is_some() {
-                        write!(f, "-")?;
-                    }
                     write!(f, "{variant}")
                 }
                 None => write!(f, ""),
             }
         }
     }
+}
+
+fn split_version_and_rest(s: &str) -> (&str, &str) {
+    let mut split_at = 0;
+    for (i, c) in s.char_indices() {
+        if !c.is_ascii_digit() && c != '.' {
+            break;
+        }
+        split_at = i + 1;
+    }
+    s.split_at(split_at)
 }
 
 impl FromStr for Tag {
@@ -67,21 +75,14 @@ impl FromStr for Tag {
                 latest:          true,
             });
         }
-        let parts: Vec<&str> = s.split('-').collect();
+        let (version, rest) = split_version_and_rest(s);
 
-        let version_part = parts[0];
-        let version_nums: Vec<&str> = version_part.split('.').collect();
-
+        let version_nums: Vec<&str> = version.split('.').collect();
         let major = version_nums.first().and_then(|v| v.parse().ok());
         let minor = version_nums.get(1).and_then(|v| v.parse().ok());
         let patch = version_nums.get(2).and_then(|v| v.parse().ok());
 
-        let variant = if parts.len() > 1 {
-            let variant_str = parts[1..].join("-");
-            Some(TagVariant::from_str(&variant_str)?)
-        } else {
-            None
-        };
+        let variant = if rest.is_empty() { None } else { Some(TagVariant::from_str(rest)?) };
 
         Ok(Self {
             major,
@@ -128,7 +129,7 @@ impl Tag {
         match (self.variant.as_ref(), rhs.variant.as_ref()) {
             (Some(_), None) | (None, Some(_)) => false,
             (None, None) => true,
-            (Some(current), Some(next)) => current.is_same_prefix(next) && current.is_same_suffix(next),
+            (Some(current), Some(next)) => current.is_same_prefix(next) && current.is_same_suffix(next) && current.is_same_affix(next),
         }
     }
 
@@ -164,7 +165,9 @@ impl Tag {
                             && match (self.variant.as_ref(), rhs.variant.as_ref()) {
                                 (None | Some(_), None) | (None, Some(_)) => false,
                                 (Some(current_variant), Some(next_variant)) => {
-                                    current_variant.is_same_prefix(next_variant) && current_variant.is_next_major(next_variant)
+                                    current_variant.is_same_prefix(next_variant)
+                                        && current_variant.is_same_affix(next_variant)
+                                        && current_variant.is_next_major(next_variant)
                                         || current_variant.is_next_minor(next_variant)
                                         || current_variant.is_next_patch(next_variant)
                                 }
@@ -220,13 +223,37 @@ mod tests {
     use crate::tag::variant::TagVariant;
 
     #[test]
+    #[allow(clippy::too_many_lines)]
     fn parsing() {
+        let expected = "3.15.0a6-slim-trixie";
+        let tag: Tag = expected.parse().unwrap();
+
+        assert_eq!(tag.major, Some(3));
+        assert_eq!(tag.minor, Some(15));
+        assert_eq!(tag.patch, Some(0));
+        assert_eq!(tag.variant.clone().unwrap().prefix, Some("a".to_owned()));
+        assert_eq!(tag.variant.clone().unwrap().major, Some(6));
+        assert_eq!(tag.variant.clone().unwrap().suffix, Some("-slim-trixie".to_owned()));
+        assert_eq!(tag.to_string(), expected);
+
+        let expected = "3.15.0a6-alpine3.23";
+        let tag: Tag = expected.parse().unwrap();
+        assert_eq!(tag.major, Some(3));
+        assert_eq!(tag.minor, Some(15));
+        assert_eq!(tag.patch, Some(0));
+        assert_eq!(tag.variant.clone().unwrap().prefix, Some("a".to_owned()));
+        assert_eq!(tag.variant.clone().unwrap().major, Some(6));
+        assert_eq!(tag.variant.clone().unwrap().minor, Some(3));
+        assert_eq!(tag.variant.clone().unwrap().patch, Some(23));
+        assert_eq!(tag.variant.clone().unwrap().affixes, ["-alpine", ".",]);
+        assert_eq!(tag.to_string(), expected);
+
         let expected = "1.29.3-alpine3.22-slim";
         let tag: Tag = expected.parse().unwrap();
         assert_eq!(tag.major, Some(1));
         assert_eq!(tag.minor, Some(29));
         assert_eq!(tag.patch, Some(3));
-        assert_eq!(tag.variant.clone().unwrap().prefix, Some("alpine".to_owned()));
+        assert_eq!(tag.variant.clone().unwrap().prefix, Some("-alpine".to_owned()));
         assert_eq!(tag.variant.clone().unwrap().major, Some(3));
         assert_eq!(tag.variant.clone().unwrap().minor, Some(22));
         assert_eq!(tag.variant.clone().unwrap().suffix, Some("-slim".to_owned()));
@@ -237,7 +264,7 @@ mod tests {
         assert_eq!(tag.major, Some(24));
         assert_eq!(tag.minor, Some(6));
         assert_eq!(tag.patch, Some(0));
-        assert_eq!(tag.variant.clone().unwrap().prefix, Some("trixie-slim".to_owned()));
+        assert_eq!(tag.variant.clone().unwrap().prefix, Some("-trixie-slim".to_owned()));
         assert_eq!(tag.variant.clone().unwrap().major, None);
         assert_eq!(tag.to_string(), expected);
 
@@ -246,7 +273,7 @@ mod tests {
         assert_eq!(tag.major, Some(13));
         assert_eq!(tag.minor, Some(1));
         assert_eq!(tag.patch, None);
-        assert_eq!(tag.variant.clone().unwrap().prefix, Some("slim".to_owned()));
+        assert_eq!(tag.variant.clone().unwrap().prefix, Some("-slim".to_owned()));
         assert_eq!(tag.to_string(), expected);
 
         let expected = "1.5.1-11_base";
@@ -254,7 +281,7 @@ mod tests {
         assert_eq!(tag.major, Some(1));
         assert_eq!(tag.minor, Some(5));
         assert_eq!(tag.patch, Some(1));
-        assert_eq!(tag.variant.clone().unwrap().prefix, None);
+        assert_eq!(tag.variant.clone().unwrap().prefix, Some("-".to_owned()));
         assert_eq!(tag.variant.clone().unwrap().major, Some(11));
         assert_eq!(tag.variant.clone().unwrap().minor, None);
         assert_eq!(tag.variant.clone().unwrap().suffix, Some("_base".to_owned()));
@@ -273,7 +300,7 @@ mod tests {
         assert_eq!(
             tag.variant,
             Some(TagVariant {
-                prefix:  Some("alpine".to_owned()),
+                prefix:  Some("-alpine".to_owned()),
                 major:   Some(3),
                 minor:   Some(22),
                 patch:   None,
@@ -291,7 +318,7 @@ mod tests {
         assert_eq!(
             tag.variant,
             Some(TagVariant {
-                prefix:  Some("alpine".to_owned()),
+                prefix:  Some("-alpine".to_owned()),
                 major:   Some(3),
                 minor:   Some(21),
                 patch:   Some(1),
@@ -309,7 +336,7 @@ mod tests {
 
         let expected = "9.1.1-debian-13-r8";
         let tag: Tag = expected.parse().unwrap();
-        assert_eq!(tag.variant.clone().unwrap().prefix, Some("debian-".to_owned()));
+        assert_eq!(tag.variant.clone().unwrap().prefix, Some("-debian-".to_owned()));
         assert_eq!(tag.variant.unwrap().major, Some(13));
 
         let expected = "10.0.1-azurelinux3.0-amd64";
@@ -317,7 +344,7 @@ mod tests {
         assert_eq!(tag.major, Some(10));
         assert_eq!(tag.minor, Some(0));
         assert_eq!(tag.patch, Some(1));
-        assert_eq!(tag.variant.clone().unwrap().prefix, Some("azurelinux".to_owned()));
+        assert_eq!(tag.variant.clone().unwrap().prefix, Some("-azurelinux".to_owned()));
         assert_eq!(tag.variant.clone().unwrap().major, Some(3));
         assert_eq!(tag.variant.clone().unwrap().minor, Some(0));
         assert_eq!(tag.variant.clone().unwrap().affixes.get(1), Some("-amd".to_owned()).as_ref());

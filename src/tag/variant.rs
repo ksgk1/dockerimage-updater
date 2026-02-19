@@ -3,7 +3,7 @@ use std::str::FromStr;
 
 use serde::{Deserialize, Serialize};
 
-use crate::container_image::ParseError;
+use crate::container_image::Error;
 
 /// `TagVariant` is build with the following components:
 /// `(prefix)(major)(affix)(minor)(affix)(patch)(suffix)`
@@ -55,28 +55,29 @@ impl Display for TagVariant {
 }
 
 impl FromStr for TagVariant {
-    type Err = ParseError;
+    type Err = Error;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let mut prefix = None;
         let mut suffix = None;
         let mut affixes = Vec::new();
 
-        let bytes = s.as_bytes();
-        let mut current_pos = 0;
-        while current_pos < bytes.len() && !bytes[current_pos].is_ascii_digit() {
-            current_pos += 1;
-        }
-        if current_pos > 0 {
-            prefix = Some(s[..current_pos].to_string());
-        }
-
-        let rest = &s[current_pos..];
-        let mut current = rest;
+        let mut current = s;
         let mut version_parts = Vec::new();
 
+        // Extract prefix (non-digit characters at the start)
+        let mut prefix_end = 0;
+        while prefix_end < current.len() && !current.as_bytes()[prefix_end].is_ascii_digit() {
+            prefix_end += 1;
+        }
+        if prefix_end > 0 {
+            prefix = Some(current[..prefix_end].to_string());
+            current = &current[prefix_end..];
+        }
+
+        // Parse version numbers and affixes
         while !current.is_empty() {
-            // Extract leading non-digit characters (affixes or suffix)
+            // Extract leading non-digit characters (affixes)
             let mut affix_end = 0;
             while affix_end < current.len() && !current.as_bytes()[affix_end].is_ascii_digit() {
                 affix_end += 1;
@@ -84,7 +85,6 @@ impl FromStr for TagVariant {
             if affix_end > 0 {
                 let part = &current[..affix_end];
                 // If this is the last part and starts with '-' or '_', treat as suffix
-                // (including the '-' or '_')
                 if affix_end == current.len() && (part.starts_with('-') || part.starts_with('_')) {
                     suffix = Some(part.to_string());
                 } else {
@@ -106,12 +106,12 @@ impl FromStr for TagVariant {
             }
         }
 
+        // Assign version parts
         let major = version_parts.first().copied();
         let minor = version_parts.get(1).copied();
         let patch = version_parts.get(2).copied();
 
-        // Clear affixes, if the are only "." since those are being handled in the
-        // display trait properly
+        // Clear affixes if they are only "."
         if affixes.iter().all(|affix| affix == ".") {
             affixes.clear();
         }
@@ -144,6 +144,11 @@ impl TagVariant {
             (None, None) => true,
             (Some(current), Some(next)) => current == next,
         }
+    }
+
+    /// Checks if the affixes match.
+    pub(crate) fn is_same_affix(&self, rhs: &Self) -> bool {
+        self.affixes == rhs.affixes
     }
 
     /// Checks if the next major version is greater than the current version.

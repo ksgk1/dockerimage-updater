@@ -1,4 +1,4 @@
-use std::fmt::{Display, Formatter};
+use std::fmt::Display;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
@@ -10,7 +10,7 @@ use ureq::Agent;
 use walkdir::WalkDir;
 
 use crate::cli;
-use crate::container_image::{ContainerImage, DockerInstruction, Dockerfile};
+use crate::container_image::{ContainerImage, Dockerfile};
 use crate::registries::{DURATION_HOUR_AS_SECS, TAGS_CACHE};
 use crate::tag::Tag;
 
@@ -78,27 +78,6 @@ impl DockerfileUpdate {
             }
         }
         result
-    }
-}
-
-impl Display for DockerfileUpdate {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        writeln!(f, "The following updates are available:")?;
-        for (stage_idx, instruction) in self.dockerfile.get_instructions().iter().enumerate() {
-            match instruction {
-                DockerInstruction::From(container_image, _) => {
-                    write!(f, "{container_image}")?;
-                    self.updates.iter().for_each(|update| {
-                        if update.0 == stage_idx {
-                            let _ = write!(f, " -> {}", update.1);
-                        }
-                    });
-                    writeln!(f)?;
-                }
-                DockerInstruction::Raw(_) => {}
-            }
-        }
-        write!(f, "")
     }
 }
 
@@ -216,9 +195,6 @@ pub fn handle_multi(multi_mode: &cli::MultiFileArguments) {
                     multi_mode.common.arch.as_ref(),
                     &ignored_images,
                 );
-                if multi_mode.dry_run {
-                    info!("The following updates will be made:\n{possible_updates}");
-                }
                 let dockerfile_updated = possible_updates.apply();
                 if multi_mode.dry_run {
                     info!(
