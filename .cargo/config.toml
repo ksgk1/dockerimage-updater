@@ -1,0 +1,46 @@
+[build]
+    incremental   = true
+    rustc-wrapper = "sccache"
+    rustflags     = ["-C", "target-cpu=native"]
+
+[alias]
+    b   = "build"
+    br  = "build --release"
+    bra = "build --release --target x86_64-unknown-linux-musl"
+    brw = "build --release --target x86_64-pc-windows-gnu"
+    c   = "clippy"
+    r   = "run"
+    rr  = "run --release"
+    t   = "test"
+
+[lints.clippy]
+    pedantic = "deny"
+
+[profile.dev]
+    codegen-units    = 256
+    debug            = true
+    debug-assertions = true
+    incremental      = true
+    lto              = false
+    opt-level        = 0
+    overflow-checks  = true
+    panic            = "unwind"
+    rpath            = false
+    strip            = "none"
+
+    [profile.dev.package."*"]
+        debug = true
+
+[profile.release]
+    codegen-units = 1
+    incremental   = true
+    lto           = "fat"
+    opt-level     = 3
+    panic         = "abort"
+
+    # Set the default for dependencies.
+    [profile.release.package."*"]
+        opt-level = 3
+
+[target.x86_64-unknown-linux-musl]
+    rustflags = ["-C", "link-arg=-lm", "-C", "target-feature=-crt-static"]

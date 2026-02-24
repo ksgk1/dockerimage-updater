@@ -24,12 +24,20 @@ fn main() {
         cli::Mode::Overview(overview_mode) => overview_mode.common.debug,
     };
 
+    let color = match &cli.mode {
+        cli::Mode::File(file_mode) => file_mode.common.color,
+        cli::Mode::Input(input_mode) => input_mode.common.color,
+        cli::Mode::Multi(multi_file_mode) => multi_file_mode.common.color,
+        cli::Mode::Overview(overview_mode) => overview_mode.common.color,
+    };
+
     let env_filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new(if debug { "debug" } else { "info" }));
     let custom_format = fmt::format()
         .with_target(false)
         .with_file(true)
         .with_level(true)
         .with_line_number(true)
+        .with_ansi(color)
         .compact();
     let fmt_layer = fmt::layer().event_format(custom_format);
 

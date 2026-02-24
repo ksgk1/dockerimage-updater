@@ -320,6 +320,7 @@ mod tests {
                 tag_search_limit: Some(1000),
                 debug:            false,
                 quiet:            false,
+                color:            false,
             },
         };
         handle_input(&i);
@@ -337,6 +338,7 @@ mod tests {
                 tag_search_limit: Some(1000),
                 debug:            false,
                 quiet:            false,
+                color:            false,
             },
         };
 
@@ -351,6 +353,7 @@ mod tests {
                 tag_search_limit: Some(1000),
                 debug:            false,
                 quiet:            false,
+                color:            false,
             },
         };
 

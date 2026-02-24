@@ -85,6 +85,9 @@ pub struct CommonOptions {
     #[arg(long, short, help = "Activates debug logging.")]
     pub(crate) debug: bool,
 
+    #[arg(long, short, help = "Activates color output.", default_value_t = false)]
+    pub(crate) color: bool,
+
     #[arg(
         long,
         short,
