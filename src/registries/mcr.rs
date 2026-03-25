@@ -7,20 +7,7 @@ use serde::Deserialize;
 /// of tags for a given image.
 pub struct McrResponseEntry {
     pub name:            String,
-    digest:              String,
-    layer_zero_digest:   Option<String>,
-    layer_zero_size:     Option<usize>,
-    repository:          String,
-    reg_hash:            String,
-    operating_system:    Option<String>,
     pub architecture:    Option<String>,
-    last_modified_date:  String,
-    created_date:        String,
-    manifest_type:       Option<String>,
-    artifact_type:       Option<String>,
-    size:                Option<usize>,
-    annotations:         Option<String>,
-    sbom_summary_digest: Option<String>,
 }
 
 pub type McrResponse = Vec<McrResponseEntry>;

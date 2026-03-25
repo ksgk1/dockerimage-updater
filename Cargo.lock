@@ -257,7 +257,7 @@ dependencies = [
 
 [[package]]
 name = "dockerimage-updater"
-version = "2.1.2"
+version = "2.1.4"
 dependencies = [
  "clap",
  "pretty_assertions",
