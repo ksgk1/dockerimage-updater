@@ -33,6 +33,9 @@ pub enum Mode {
     /// dockerfiles. Specific files can be excluded.
     #[command(alias = "m")]
     Multi(MultiFileArguments),
+
+    /// Will download the latest binary and place it next to the current one.
+    SelfUpdate,
 }
 
 #[derive(Args, Debug, Clone)]

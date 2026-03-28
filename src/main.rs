@@ -2,7 +2,7 @@ use clap::Parser;
 use tracing_subscriber::prelude::*;
 use tracing_subscriber::{EnvFilter, fmt};
 
-use crate::utils::{check_update, handle_file, handle_input, handle_multi, handle_overview};
+use crate::utils::{check_update, handle_file, handle_input, handle_multi, handle_overview, handle_self_update};
 
 mod cli;
 mod container_image;
@@ -22,6 +22,7 @@ fn main() {
         cli::Mode::Input(input_mode) => input_mode.common.debug,
         cli::Mode::Multi(multi_file_mode) => multi_file_mode.common.debug,
         cli::Mode::Overview(overview_mode) => overview_mode.common.debug,
+        &cli::Mode::SelfUpdate => false,
     };
 
     let color = match &cli.mode {
@@ -29,6 +30,7 @@ fn main() {
         cli::Mode::Input(input_mode) => input_mode.common.color,
         cli::Mode::Multi(multi_file_mode) => multi_file_mode.common.color,
         cli::Mode::Overview(overview_mode) => overview_mode.common.color,
+        &cli::Mode::SelfUpdate => false,
     };
 
     let env_filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new(if debug { "debug" } else { "info" }));
@@ -57,6 +59,7 @@ fn main() {
         cli::Mode::Overview(overview_arguments) => overview_arguments.common.quiet,
         cli::Mode::File(single_file_arguments) => single_file_arguments.common.quiet,
         cli::Mode::Multi(multi_file_arguments) => multi_file_arguments.common.quiet,
+        &cli::Mode::SelfUpdate => false,
     } {
         check_update();
     }
@@ -73,6 +76,9 @@ fn main() {
         }
         cli::Mode::Multi(multi_mode) => {
             handle_multi(&multi_mode);
+        }
+        cli::Mode::SelfUpdate => {
+            handle_self_update();
         }
     }
 }

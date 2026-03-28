@@ -1,7 +1,7 @@
 [package]
     edition = "2024"
     name    = "dockerimage-updater"
-    version = "2.1.4"
+    version = "2.1.5"
 
 [dependencies]
     clap               = { version = "4.6", features = ["derive"] }
@@ -11,7 +11,7 @@
     thiserror          = { version = "2.0" }
     tracing            = { version = "0.1" }
     tracing-subscriber = { version = "0.3", features = ["env-filter"] }
-    ureq               = { version = "3.1", default-features = false, features = ["json", "rustls"] }
+    ureq               = { version = "3.3", default-features = false, features = ["json", "rustls"] }
     walkdir            = { version = "2.5" }
 
 [dev-dependencies]

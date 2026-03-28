@@ -3,3 +3,4 @@
 /tests
 .directory
 .cargo/
+.idea/
