@@ -251,34 +251,54 @@ struct TagRefListResponse {
     _cache_key: String,
 }
 
-pub fn check_update() {
-    let agent = Agent::new_with_defaults();
-
-    if let Ok(mut response) = agent
+/// Returns the latest available version if there is one published on Github.
+fn fetch_latest_version(agent: &Agent) -> Option<Tag> {
+    let mut response = match agent
         .get("https://github.com/ksgk1/dockerimage-updater/refs?type=tag")
         .header("Accept", "application/json")
         .call()
     {
-        let current_tag: Tag = VERSION.parse().expect("We used a valid semver version for our own project.");
-        let response_body = &response.body_mut().read_to_string().expect("Well-formed response");
-        let parsed_response: TagRefListResponse = serde_json::from_str(response_body).expect("Well-formed json with expected fields");
-        let ref_tags: Vec<Tag> = parsed_response
-            .refs
-            .iter()
-            .filter_map(|tag| tag.strip_prefix("v").unwrap_or(tag).parse().ok())
-            .collect();
-        if ref_tags.iter().any(|t| t > &current_tag) {
-            println!(
-                "A newer version is available: v{}\nPlease check: https://github.com/ksgk1/dockerimage-updater/releases",
-                ref_tags.iter().max().expect("We have a max version")
-            );
+        Ok(r) => r,
+        Err(e) => {
+            eprintln!("Failed to check for updates: {e}");
+            return None;
         }
+    };
+
+    let current_tag: Tag = VERSION.parse().expect("Valid semver version");
+    let response_body = response.body_mut().read_to_string().expect("Well-formed response");
+    let parsed_response: TagRefListResponse = match serde_json::from_str(&response_body) {
+        Ok(p) => p,
+        Err(e) => {
+            eprintln!("Failed to parse update response from GitHub. Error: {e}");
+            return None;
+        }
+    };
+
+    let latest = parsed_response
+        .refs
+        .iter()
+        .filter_map(|tag| tag.strip_prefix("v").unwrap_or(tag).parse().ok())
+        .max()?;
+
+    if latest > current_tag {
+        Some(latest)
+    } else {
+        println!("Already up to date.");
+        None
+    }
+}
+
+pub fn check_update() {
+    let agent = Agent::new_with_defaults();
+    if let Some(latest) = fetch_latest_version(&agent) {
+        println!("A newer version is available: v{latest}\nPlease check: https://github.com/ksgk1/dockerimage-updater/releases");
     }
 }
 
 /// Handles file downloads
-fn download_file(url: &str, output_path: &str) -> Result<(), Box<dyn std::error::Error>> {
-    let mut response = ureq::get(url).call()?;
+fn download_file(agent: &Agent, url: &str, output_path: &str) -> Result<(), Box<dyn std::error::Error>> {
+    let mut response = agent.get(url).call()?;
     let mut file = File::create(output_path)?;
     copy(&mut response.body_mut().as_reader(), &mut file)?;
     Ok(())
@@ -288,36 +308,21 @@ fn download_file(url: &str, output_path: &str) -> Result<(), Box<dyn std::error:
 /// available.
 pub fn handle_self_update() {
     let agent = Agent::new_with_defaults();
+    let Some(latest) = fetch_latest_version(&agent) else { return };
 
-    if let Ok(mut response) = agent
-        .get("https://github.com/ksgk1/dockerimage-updater/refs?type=tag")
-        .header("Accept", "application/json")
-        .call()
-    {
-        let current_tag: Tag = VERSION.parse().expect("We used a valid semver version for our own project.");
-        let response_body = &response.body_mut().read_to_string().expect("Well-formed response");
-        let parsed_response: TagRefListResponse = serde_json::from_str(response_body).expect("Well-formed json with expected fields");
-        let ref_tags: Vec<Tag> = parsed_response
-            .refs
-            .iter()
-            .filter_map(|tag| tag.strip_prefix("v").unwrap_or(tag).parse().ok())
-            .collect();
-        if ref_tags.iter().any(|t| t > &current_tag) {
-            let latest_version = ref_tags.iter().max().expect("We have at least one candidate for the latest version.");
-            let extension = match std::env::consts::OS {
-                "windows" => ".exe",
-                _ => "-x86_64-unknown-linux-musl",
-            };
-            let download_url =
-                format!("https://github.com/ksgk1/dockerimage-updater/releases/download/v{latest_version}/dockerimage-updater-v{latest_version}{extension}");
-            let mut full_path = env::current_dir().expect("We run the binary from a valid path");
-            let file_name = format!("dockerimage-updater-v{latest_version}{extension}");
-            full_path.push(&file_name);
-            match download_file(&download_url, full_path.to_str().expect("We build a valid file path")) {
-                Ok(()) => println!("Successfully downloaded new version to: {}", full_path.display()),
-                Err(e) => eprintln!("Error while downloading new release: {e}"),
-            }
-        }
+    let extension = match std::env::consts::OS {
+        "windows" => ".exe",
+        _ => "-x86_64-unknown-linux-musl",
+    };
+
+    let file_name = format!("dockerimage-updater-v{latest}{extension}");
+    let download_url = format!("https://github.com/ksgk1/dockerimage-updater/releases/download/v{latest}/{file_name}");
+    let mut full_path = env::current_dir().expect("Valid current dir");
+    full_path.push(&file_name);
+
+    match download_file(&agent, &download_url, full_path.to_str().expect("Valid path")) {
+        Ok(()) => println!("Successfully downloaded new version to: {}", full_path.display()),
+        Err(e) => eprintln!("Error while downloading new release: {e}"),
     }
 }
 
